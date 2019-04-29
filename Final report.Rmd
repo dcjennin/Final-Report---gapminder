@@ -1,0 +1,223 @@
+---
+title: "Final Report - Gapminder"
+author: "Dayton"
+date: "April 28, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Exploratory Data Analysis
+
+I have decided to approach the gapminder data set provided for our research. The question I want to explore is:
+
+**Is there a correlation between lifetime expectancy of a country and lifetime GDP of a country? If so, how strong is that correlation?**
+
+I predict that if a country's GDP grows over time then their life expectancy would as well due to GDP growth representing that a country is becoming more developed. 
+
+
+### Data Wrangling
+
+By running simple commands from the dplyr package, glimpse(gapminder) and dim(gapminder), I am able to dectect the gapminder data consist of 41,284 observations and 6 variables. They are three different variables in this data set: `character`, `double`, and `integer`. The data spans across 115 years, starting back in 1800 and ending in 2015. The 6 variables in the data set are `Country`, `Year`, `life`, `population`, `income`, and `region`. 
+
+```{r message=FALSE, warning=FALSE, include=FALSE, results="hide"}
+library("dplyr")
+library("ggvis")
+library("data.table")
+library("ggplot2")
+```
+
+```{r message=FALSE, include=FALSE, results='hide'}
+gapminder <- fread("C:/Users/dcjen/OneDrive/Documents/IU Graduate School/Applied Data Science/Code Portfolio/R/gapminder.csv", na = "NA")
+```
+
+```{r include=FALSE}
+round(gapminder$life, digits =2)
+as.integer(gapminder$life)
+```
+
+```{r echo=FALSE}
+glimpse(gapminder)
+dim(gapminder)
+```
+
+Based on the extensive amount of data with the dataset I wanted to run some preprocessing steps to understand what issues I could deal with once I start trying to draw conclusions with some visual representations. One of my biggest concerns with the data set is the number of `NA` values I saw in my initial look of the data. By running the the code chunck below I findout that 2 of my 6 variables have missing values, `population` and `income`. 
+
+```{r include=FALSE, results='hide'}
+any(is.na(gapminder$Country))
+any(is.na(gapminder$Year))
+any(is.na(gapminder$life))
+any(is.na(gapminder$population))
+any(is.na(gapminder$income))
+any(is.na(gapminder$region))
+```
+
+```{r include=FALSE}
+pop_NA <- sum(is.na(gapminder$population))
+```
+It shouldn't come as a surpise population has an enourmous amount of `NA` values, `r pop_NA` to be exact. Population counts are typically taken every 10 years in census in the modern era and the methods of population collecting weren't efficient or did they include every person. For example, the U.S just started taking a consesus in 1790 and it took months for them to gather [1790 overview](https://www.census.gov/history/www/through_the_decades/overview/1790.html).
+
+```{r include=FALSE}
+gapminder2 <- filter(gapminder, !is.na(gapminder$population))
+```
+
+```{r include=FALSE}
+gapminder3 <- filter(gapminder2, !is.na(gapminder2$income))
+```
+
+## Visual Analysis
+
+### Exploratory
+
+To start, I wanted to get a rough sketch of my relationship between income and life expectancy.
+
+```{r echo=TRUE}
+gapminder3 %>% ggvis(~life, ~income, fill = ~region) %>% layer_points()
+```
+
+```{r echo=FALSE}
+gapminder3 %>% ggvis(~life, ~income) %>% group_by(region) %>% layer_smooths(stroke = ~region, strokeWidth := 4)
+```
+
+Both graphs above show the same information, but with different methods. The top graph is a scatter plot and the bottom one is a line graph. I took a step further on the exploratory analysis with second code chunck because it maybe obvious of the positive relationship in the scatter plot graph, but the visualization isn't clear cut. By executing the second code chunck, the visual representation of the correlation is more defined in the later graph. We can clearly see as income grows so does life expectancy. Interestingly it looks like the relationship isn't as great if you look at South Asia and the Sub-Saharan Africa regions. However, for the purposes of this report I won't be taking a closer look at that relationship. 
+
+### Cluster
+
+```{r include=FALSE}
+library("cluster")
+library("purrr")
+```
+
+My attempts at producing a cluster model through K-means and through Silhouette analysis were halted due *NA's being introduced by coercion* for both methods. I have provided the code below as reference. 
+
+### K-means clustering
+
+  *gap_model <- kmeans(gapminder3, center = 6)*
+
+ *gapminder_cluster <- mutate(gapminder3, cluster = gap_model$cluster)*
+ 
+  *tot_withinss <- map_dbl(1:20, function(k){model <- kmeans(x = lineup, centers = k) model$tot.withinss})*
+  *gap_elbow <- data.frame(k = 1:20, tot_withinss)*
+  
+  *ggplot(gap_elbow, aes(x = k, y = tot_withinss)) +*
+    *geom_line() + *
+    *scale_x_continous (breaks = 20)*
+    
+### Silouette analysis
+
+  *gap_pam <- pam(gapminder3, k = 6)*
+  *plot(silhouette(gap_pam))*
+  
+  *gap_width <- map_dbl(2:20, function(k){gap_sil <- pam(x = gapminder3, k = k) gap_sil$silinfor$avg.width})*
+  
+  *sil <- data.frame(k = 2:20, gap_width = gap_width)*
+  
+  *ggplot(sil, aes(x = k, y = gap_width))+*
+    *geom_line()+*
+    *scale_x_continous(breaks = 2:20)*
+  
+I decided to go with 6 for my number of centroids on both analysis because I wanted to see if the data points would have clustered based on the number of regions I have in my data set, which is 6.
+
+## Regression
+For my regression analysis, I ran multiple types of regressions. I ran the Gaussian, Poisson, and the Poission again with additional factors. 
+
+### Gaussian Glm
+
+In this regression I am looking at the affect income has on life, `life ~ income`.  That is displayed in my `gap_gaus_glm` formula provided below:
+  
+        **gap_gaus_glm <- glm(life ~ income, data = gapminder3, family "gaussian")**
+
+```{r include=FALSE}
+gap_gaus_glm <- glm(life ~ income, data = gapminder3, family = "gaussian")
+```
+
+```{r include=FALSE}
+pred_gap <- data.frame(income = seq(from = 1, to = 38943))
+```
+
+```{r include=FALSE}
+pred_gap$predicted <- predict(gap_gaus_glm, pred_gap)
+```
+
+```{r echo=TRUE}
+summary(gap_gaus_glm)
+```
+
+```{r include=FALSE}
+wealth = 15000
+
+years <- 38.73 + .0009217 * wealth
+```
+The equation above can be interpreted in standard form as such, life = 38.73 + .0009217*income. Now the interpretation is, for each dollar of income an individual makes their life expectancy is increased by .0009217 years. For an individual that brings in $15,000 a year would expect to live `r years`.
+
+```{r}
+ggplot(gapminder3)+
+  geom_point(aes(x = income, y = life)) +
+  geom_line(aes(x = income, y = predicted), color = 'red', size = 3, data = pred_gap)
+```
+
+As you can see by the graph provided above, the prediction, noted by the redline, shows a positive correlation between life and income. Before we could conclude our results, we must check for heterogeneity in our residuals to ensure there isn't bias incorporated in our data set. If we do find bias then we will require a different type of model. 
+
+```{r include=FALSE}
+gap_diag <- data.frame(residuals = resid(gap_gaus_glm), fitted = fitted(gap_gaus_glm))
+```
+
+```{r echo=FALSE}
+ggplot(gap_diag) +
+  geom_point(aes(x = fitted, y = residuals))
+```
+
+Unfortunately, as you can see by the graph above the residuals aren't around the value of 0. The interpretation of this graph means there's a lot of heterogeneity in our regression. The Gaussian model isn't the correct model for this data set. 
+
+
+### Poisson Glm
+
+I tried multiple times to run the Poisson glm on my computer but my computer wasn't able to compute all the values of the Poission distribution. However, I have provided my code for For the Poisson model, I use the same dependent, life, and independent, income, variables. 
+
+
+              *gap_pois_glm <- glm(life~income, data = gapminder3, family = "poisson")*
+
+                    *gap_pois_income<- data.frame(income = seq(from = 1, to = 100))*
+        
+            *gap_pois_income$predicted <- predict(gap_pois_glm, gap_pois_income, type = "response")*
+
+                                      *summary(gap_pois_glm)*
+                                      *summary(gap_pois_income)*
+
+
+                    *ggplot(gapminder3)+
+                        *geom_point(aes(x = income, y = life))+ *
+                        *geom_line(aes(x = income, y = predicted, data = gap_pois_income))*
+
+
+          *pois_diag <- data.frame(residuals = resid(gap_pois_glm), fitted = fitted(gap_pois_glm))*
+
+                    *dispersion(gap_pois_glm, modeltype = "poisson")*
+                    
+### Poisson glm w/additional factors
+
+With this regression model, there is a chance that of discovering another factor that could impact life expectancy for people. The new independent variable I choose to run the new analysis on was based on the region of the world a person came from. Now my new regression model would consist of life being my dependent variable and my two independet variables now would be income and region. Unforunately, without being able to run my Poisson Glm regression, I wasn't able to reference the necessary variables to calculate my third regression. Once again I have provided the code chuncks below for reference. 
+            
+            *gap_pois_factor <- glm(life ~income * region, data = gapminder3, family = "poisson")*
+            
+            *gap_pois_two <- expand.grind(income = seq(from 1, to = 100), region = c("America", "East Asia & Pacific", "Europe & Central Asia", "Middle East & North Africa", "South Asia", "Sub-Saharan Africa"))*
+            
+            *gap_pois_two$predicted <- predict(gap_pois_factor, gap_pois_two, type = "response")*
+            
+            *ggplot(gapminder3) +
+              *geom_point(aes(x = income, y = life)) +*
+              *geom_line(aes(x = income, y = predicted, col = region), data = gap_pois_two)*
+              
+            *pois2_diag <- data.frame(residuals = resid(gap_pois_factor), fitted = fitted(gap_pois_factor))*
+            
+            *ggplot(pois2_diag)+*
+              *geom_point(aes(x = fitted, y = residuals))*
+              
+            *dispersion(gap_pois_factor, modeltype = "poisson")*
+            
+
+# Analysis
+
+The question I asked at the start of my analysis was, what impact did `income` have on life expectancy? From the results I was able to gather, `income` had a positive impact on life expectancy. The amount of impact though couldn't be fully trusted because my results from the Gaussian Model showed my model incoporated bias. If this research could be done again, I would incorporate the region variable within my analysis. I believe this variable would reduce the amount of bias in the model, but not to to zero.
